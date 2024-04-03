@@ -1,3 +1,4 @@
+from numpy.core.numerictypes import obj2sctype
 import nifty8 as ift
 import resolve as rve
 
@@ -17,18 +18,20 @@ except ImportError:
 
 ift.random.push_sseq_from_seed(42)
 
-obs_all = list(rve.ms2observations_all("A523_D_SP06_08_MC.ms", "DATA"))
+obs_all = list(rve.ms2observations_all("A523_CD_06-08_MC_R.ms", "DATA"))
 
-obs = obs_all[1]
-obs = obs.to_double_precision()
-obs = obs.restrict_to_stokesi()
+# obs = obs_all[1]
+obs_all = [obs.to_double_precision() for obs in obs_all]
+obs_all = [obs.restrict_to_stokesi() for obs in obs_all]
 
 cfg = configparser.ConfigParser()
-cfg.read("abell_523.cfg")
+# cfg.read("abell_523_C.cfg")
+cfg.read("abell_523_CD_muli_frequnency.cfg")
 
-sky_diffuse, additional_diffuse = rve.sky_model_diffuse(cfg["sky"])
-sky_points, additional_points = rve.sky_model_points(cfg["sky"])
-sky = sky_diffuse + sky_points
+sky_diffuse, additional_diffuse = rve.sky_model_diffuse(cfg["sky"], obs_all)
+# sky_points, additional_points = rve.sky_model_points(cfg["sky"])
+# sky = sky_diffuse + sky_points
+sky = sky_diffuse
 # import numpy as np
 # for i in range(10):
 #     rnd = ift.from_random(sky.domain)
@@ -39,18 +42,17 @@ sky = sky_diffuse + sky_points
 #     plt.colorbar()
 #     plt.show()
 
-
-lh = rve.ImagingLikelihood(obs, sky, 1e-7, False, nthreads=4)
-
+lh = rve.ImagingLikelihood(obs_all, sky, 1e-7, False, nthreads=4)
 
 def callback(samples, i):
     sky_mean = samples.average(sky)
-    plt.imshow(sky_mean.val[0, 0, 0, :, :].T, origin="lower", norm=LogNorm())
-    plt.colorbar()
-    if master:
-        plt.savefig(f"resovle_iteration_{i}.png")
-    plt.close()
-    rve.ubik_tools.field2fits(sky_mean, observations=obs, file_name=f'abell_523_resolve_iteration_{i}.fits')
+    for n in range(sky_mean.shape[2]):
+        plt.imshow(sky_mean.val[0, 0, n, :, :].T, origin="lower", norm=LogNorm())
+        plt.colorbar()
+        if master:
+            plt.savefig(f"resovle_iteration_{i}_band_{n}.png")
+        plt.close()
+    rve.ubik_tools.field2fits(sky_mean, observations=obs_all, file_name=f'abell_523_resolve_iteration_{i}.fits')
 
 
 ic_sampling_early = ift.AbsDeltaEnergyController(
@@ -84,4 +86,5 @@ samples = ift.optimize_kl(
     output_directory="resolve_demo",
     comm=comm,
     inspect_callback=callback,
+
 )
