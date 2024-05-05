@@ -80,7 +80,7 @@ except ImportError:
 path = '/home/jruestig/pro/python/resolve/demo/multi_resolve/JVLA_data/resolve'
 data_filenames = [
     join(path, f'A523_D_06-08.ms_fld{ii:02}_spw1.npz') for ii in range(5, 11)]
-data_filenames = [data_filenames[0]]
+# data_filenames = [data_filenames[0]]
 
 
 all_obs = []
@@ -115,7 +115,7 @@ sky_coords = wcs.pixel_to_world(*index)
 # sky_coordinates = np.array(np.meshgrid(
 #     -x_direction, y_direction, indexing='xy'))
 
-output_directory = f"output/abell_523_D_{npix}_fld5_wcs"
+output_directory = f"output/abell_523_D_{npix}_com_wcsT"
 
 
 beam_directions = {}
@@ -142,8 +142,10 @@ for fldid, oo in enumerate(all_obs):
     # x = np.sqrt((sky_coordinates[0] - dx)**2 + (sky_coordinates[1] - dy)**2)
     # beam0 = rve.vla_beam_func(freq=oo.freq.mean(), x=x)
     # beam = np.ones_like(x)
-    beam = rve.alma_beam_func(D=25.0, d=1.0, freq=oo.freq.mean(), x=x)
+    beam = rve.alma_beam_func(D=25.0, d=1.0, freq=oo.freq.mean(), x=x).T
+
     plt.imshow(beam, origin='lower')
+    plt.contour(beam, levels=[0.1], colors='white')
     plt.show()
 
     beam = ift.makeField(sdom, beam)
@@ -233,6 +235,7 @@ lh = lh @ SKY_BEAMER @ REDUCER @ sky
 def callback(samples, i):
     sky_mean = samples.average(sky)
     plt.imshow(sky_mean.val[0, 0, 0].T, origin="lower", norm=LogNorm())
+    # plt.contour(beam, levels=[0.1], colors='white')
     plt.colorbar()
     if master:
         plt.savefig(f"{output_directory}/resovle_iteration_{i}.png")
