@@ -1,23 +1,71 @@
-from numpy.typing import ArrayLike
+from typing import List, Union, Tuple
+
+from astropy.coordinates import SkyCoord
+from astropy.wcs import WCS
+from astropy.units import Unit
+from astropy import units
+
+
 from functools import reduce
 from resolve.library.primary_beams import alma_beam_func
 import resolve as rve
 import nifty8 as ift
-from resolve.sky_model import sky_model_diffuse
 import configparser
 import numpy as np
 
 from beamer import SkyBeamer
 
 from os.path import join
-from sys import exit
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 
 from astropy import units as u
 
-from astropy.coordinates import SkyCoord
+
+def build_astropy_wcs(
+    center: SkyCoord,
+    shape: Tuple[int, int],
+    fov: Tuple[Unit, Unit],
+    rotation: Unit = 0.0 * units.deg,
+) -> WCS:
+    '''
+    Specify the Astropy wcs.
+
+    Parameters
+    ----------
+    center : SkyCoord
+        The value of the center of the coordinate system (crval).
+
+    shape : tuple
+        The shape of the grid.
+
+    fov : tuple
+        The field of view of the grid. Typically given in degrees.
+
+    rotation : units.Quantity
+        The rotation of the grid WCS with respect to the ICRS system, in degrees.
+    '''
+
+    # Create a WCS object
+    w = WCS(naxis=2)
+
+    # Rotation
+    rotation_value = rotation.to(units.rad).value
+    pc11 = np.cos(rotation_value)
+    pc12 = -np.sin(rotation_value)
+    pc21 = np.sin(rotation_value)
+    pc22 = np.cos(rotation_value)
+
+    # Set up ICRS system
+    w.wcs.crpix = [shape[0] / 2 + 0.5, shape[1] / 2 + 0.5]
+    w.wcs.cdelt = [-fov[0].to(units.deg).value / shape[0],
+                   fov[1].to(units.deg).value / shape[1]]
+    w.wcs.crval = [center.ra.deg, center.dec.deg]
+    w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    w.wcs.pc = np.array([[pc11, pc12], [pc21, pc22]])
+
+    return w
 
 
 try:
@@ -32,14 +80,7 @@ except ImportError:
 path = '/home/jruestig/pro/python/resolve/demo/multi_resolve/JVLA_data/resolve'
 data_filenames = [
     join(path, f'A523_D_06-08.ms_fld{ii:02}_spw1.npz') for ii in range(5, 11)]
-data_filenames = [data_filenames[3]]
-
-
-def coords(shape: int, distance: float) -> ArrayLike:
-    '''Returns coordinates such that the edge of the array is
-    shape/2*distance'''
-    halfside = shape/2 * distance
-    return np.linspace(-halfside+distance/2, halfside-distance/2, shape)
+data_filenames = [data_filenames[0]]
 
 
 all_obs = []
@@ -54,22 +95,29 @@ for file in data_filenames:
 cfg = configparser.ConfigParser()
 cfg.read("./abell_523_D.cfg")
 sky, sky_diffuse_operators = rve.sky_model_diffuse(cfg['sky'])
+sdom = sky.target[3]
 
 center_ra = cfg['sky']['image center ra']
 center_dec = cfg['sky']['image center dec']
 center_frame = cfg['sky']['image center frame']
-npix = cfg['sky']['space npix x']
-sdom = sky.target[3]
-x_direction = coords(sdom.shape[0], sdom.distances[0])
-y_direction = coords(sdom.shape[1], sdom.distances[1])
-sky_coordinates = np.array(np.meshgrid(
-    -x_direction, y_direction, indexing='xy'))
-
-output_directory = f"output/abell_523_D_{npix}_fld8_wbeam"
-
+npix = int(cfg['sky']['space npix x'])
+fov = float(cfg['sky']['space fov x'].split('d')[0]) * u.deg
 
 sky_center = SkyCoord(center_ra, center_dec, unit=(
     u.hourangle, u.deg), frame=center_frame)
+wcs = build_astropy_wcs(sky_center, (npix,)*2, (fov,)*2)
+index = np.meshgrid(np.arange(npix), np.arange(npix))
+sky_coords = wcs.pixel_to_world(*index)
+
+
+# x_direction = coords(sdom.shape[0], sdom.distances[0])
+# y_direction = coords(sdom.shape[1], sdom.distances[1])
+# sky_coordinates = np.array(np.meshgrid(
+#     -x_direction, y_direction, indexing='xy'))
+
+output_directory = f"output/abell_523_D_{npix}_fld5_wcs"
+
+
 beam_directions = {}
 for fldid, oo in enumerate(all_obs):
 
@@ -83,12 +131,15 @@ for fldid, oo in enumerate(all_obs):
     dy = r.to(u.rad).value * np.cos(phi.to(u.rad).value)
     dx = r.to(u.rad).value * np.sin(phi.to(u.rad).value)
 
+    x = sky_coords.separation(o_phase_center)
+    x = x.to(u.rad).value
+
     print(f'Field {fldid}',
           f'Resol {oo.direction.phase_center}',
           f'Phase {o_phase_center.ra.hour}, { o_phase_center.dec.deg}',
           dx, dy)
 
-    x = np.sqrt((sky_coordinates[0] - dx)**2 + (sky_coordinates[1] - dy)**2)
+    # x = np.sqrt((sky_coordinates[0] - dx)**2 + (sky_coordinates[1] - dy)**2)
     # beam0 = rve.vla_beam_func(freq=oo.freq.mean(), x=x)
     # beam = np.ones_like(x)
     beam = rve.alma_beam_func(D=25.0, d=1.0, freq=oo.freq.mean(), x=x)
@@ -143,10 +194,7 @@ def build_response(field_key, dx, dy, obs, sky_dtype):
         domain_dtype=obs.vis.dtype
     )
 
-    # FIXME: This response operator makes unnecessary multiple beam pattern
-    # multiplications. As the SKY_BEAMER calculates the beam pattern for all fields.
-    # Hence, we throw away all other fields.
-    return UPCAST_TO_STOKES_I @ RADIO_RESPONSE @ FIELD_EXTRACTOR @ SKY_BEAMER @ REDUCER
+    return UPCAST_TO_STOKES_I @ RADIO_RESPONSE @ FIELD_EXTRACTOR
 
 
 def build_energy(response, obs):
@@ -161,7 +209,7 @@ responses = []
 energies = []
 for kk, vv, obs in zip(beam_directions.keys(), beam_directions.values(), all_obs):
     R = build_response(kk, vv['dx'], vv['dy'], obs, tmp_sky.dtype)
-    responses.append(R)
+    responses.append(R @ SKY_BEAMER @ REDUCER)
     energies.append(build_energy(R, obs))
 
 
@@ -179,12 +227,12 @@ for ii in range(1):
     plt.show()
 
 lh = reduce(lambda x, y: x+y, energies)
-lh = lh @ sky
+lh = lh @ SKY_BEAMER @ REDUCER @ sky
 
 
 def callback(samples, i):
     sky_mean = samples.average(sky)
-    plt.imshow(sky_mean.val[0, 0, 0, :, :].T, origin="lower", norm=LogNorm())
+    plt.imshow(sky_mean.val[0, 0, 0].T, origin="lower", norm=LogNorm())
     plt.colorbar()
     if master:
         plt.savefig(f"{output_directory}/resovle_iteration_{i}.png")
