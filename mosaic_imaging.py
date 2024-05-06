@@ -7,7 +7,6 @@ from astropy import units
 
 
 from functools import reduce
-from resolve.library.primary_beams import alma_beam_func
 import resolve as rve
 import nifty8 as ift
 import configparser
@@ -115,7 +114,7 @@ sky_coords = wcs.pixel_to_world(*index)
 # sky_coordinates = np.array(np.meshgrid(
 #     -x_direction, y_direction, indexing='xy'))
 
-output_directory = f"output/abell_523_D_{npix}_com_wcsT"
+output_directory = f"output/abell_523_D_{npix}_com_wcsT_ps"
 
 
 beam_directions = {}
