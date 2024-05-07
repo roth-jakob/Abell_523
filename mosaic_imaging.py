@@ -76,9 +76,11 @@ except ImportError:
     comm = None
     master = True
 
-path = '/home/jruestig/pro/python/resolve/demo/multi_resolve/JVLA_data/resolve'
+# path = './data'
+path = '/home/jruestig/pro/python/Abell_523/data/resolve/'
+base = 'A523_CD_06_08_R'
 data_filenames = [
-    join(path, f'A523_D_06-08.ms_fld{ii:02}_spw1.npz') for ii in range(5, 11)]
+    join(path, f'{base}.ms_fld{ii:02}.npz') for ii in range(5, 11)]
 # data_filenames = [data_filenames[0]]
 
 
@@ -114,7 +116,7 @@ sky_coords = wcs.pixel_to_world(*index)
 # sky_coordinates = np.array(np.meshgrid(
 #     -x_direction, y_direction, indexing='xy'))
 
-output_directory = f"output/abell_523_D_{npix}_com_wcsT_ps"
+output_directory = f"output/{base}_{npix}_com_wcsT"
 
 
 beam_directions = {}
@@ -143,9 +145,9 @@ for fldid, oo in enumerate(all_obs):
     # beam = np.ones_like(x)
     beam = rve.alma_beam_func(D=25.0, d=1.0, freq=oo.freq.mean(), x=x).T
 
-    plt.imshow(beam, origin='lower')
-    plt.contour(beam, levels=[0.1], colors='white')
-    plt.show()
+    # plt.imshow(beam, origin='lower')
+    # plt.contour(beam, levels=[0.1], colors='white')
+    # plt.show()
 
     beam = ift.makeField(sdom, beam)
     beam_direction = f'fld{fldid}'
