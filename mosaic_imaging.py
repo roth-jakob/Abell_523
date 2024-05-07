@@ -29,6 +29,7 @@ except ImportError:
 
 cfg = configparser.ConfigParser()
 cfg.read("./abell_523_D.cfg")
+# cfg.read("abell_523_CD_muli_frequnency.cfg")
 path = '/home/jruestig/pro/python/Abell_523/data/resolve/'
 base = 'A523_CD_06_08_R'
 
@@ -55,7 +56,7 @@ fov = float(cfg['sky']['space fov x'].split('d')[0]) * u.deg
 output_directory = f"output/{base}_{npix}_com_wcsT"
 
 sky, sky_diffuse_operators = rve.sky_model_diffuse(cfg['sky'])
-sdom = sky.target[3]
+pdom, tdom, fdom, sdom = sky.target
 
 if cfg['sky'].get('point sources mode', False):
     sky_points, additional_points = rve.sky_model_points(cfg["sky"])
@@ -69,6 +70,8 @@ wcs = build_astropy_wcs(sky_center, (npix,)*2, (fov,)*2)
 index = np.meshgrid(np.arange(npix), np.arange(npix))
 sky_coords = wcs.pixel_to_world(*index)
 
+n_freq_bins = fdom.shape[0]
+f_binbounds = fdom.binbounds()
 
 beam_directions = {}
 for fldid, oo in enumerate(all_obs):
@@ -83,18 +86,29 @@ for fldid, oo in enumerate(all_obs):
     dy = r.to(u.rad).value * np.cos(phi.to(u.rad).value)
     dx = r.to(u.rad).value * np.sin(phi.to(u.rad).value)
 
-    x = sky_coords.separation(o_phase_center)
-    x = x.to(u.rad).value
-
     print(f'Field {fldid}',
           f'Resol {oo.direction.phase_center}',
           f'Phase {o_phase_center.ra.hour}, { o_phase_center.dec.deg}',
           dx, dy)
 
-    # beam = rve.vla_beam_func(freq=oo.freq.mean(), x=x).T
-    beam = rve.alma_beam_func(D=25.0, d=1.0, freq=oo.freq.mean(), x=x).T
+    x = sky_coords.separation(o_phase_center)
+    x = x.to(u.rad).value
 
-    beam = ift.makeField(sdom, beam)
+    beam_pointing = []
+    for ff in range(n_freq_bins):
+        ooo, f_ind = oo.restrict_by_freq(
+            f_binbounds[ff], f_binbounds[ff+1], True)
+
+        # beam = rve.vla_beam_func(freq=oo.freq.mean(), x=x).T
+        beam = rve.alma_beam_func(D=25.0, d=1.0, freq=ooo.freq.mean(), x=x).T
+        plt.imshow(beam, origin='lower')
+        plt.show()
+        beam_pointing.append(beam)
+
+    beam = np.array(beam_pointing)
+    beam = np.broadcast_to(beam, sky.target.shape)
+
+    beam = ift.makeField(sky.target, beam)
     beam_direction = f'fld{fldid}'
     beam_directions[beam_direction] = dict(
         dx=dx,
@@ -106,12 +120,6 @@ for fldid, oo in enumerate(all_obs):
 # Used for the dtypes
 tmp_sky = sky(ift.from_random(sky.domain))
 SKY_BEAMER = SkyBeamer(sky.target[3], beam_directions=beam_directions)
-REDUCER = ift.JaxLinearOperator(
-    sky.target,
-    SKY_BEAMER.domain,
-    lambda x: x[0, 0, 0],  # FIXME: How to do this on all polarizations??
-    domain_dtype=tmp_sky.dtype
-)
 
 
 def build_response(field_key, dx, dy, obs, sky_dtype):
@@ -157,7 +165,7 @@ responses = []
 energies = []
 for kk, vv, obs in zip(beam_directions.keys(), beam_directions.values(), all_obs):
     R = build_response(kk, vv['dx'], vv['dy'], obs, tmp_sky.dtype)
-    responses.append(R @ SKY_BEAMER @ REDUCER)
+    responses.append(R @ SKY_BEAMER)
     energies.append(build_energy(R, obs))
 
 
