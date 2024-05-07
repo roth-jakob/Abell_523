@@ -19,11 +19,11 @@ outdir = args.output_dir
 makedirs(outdir, exist_ok=True)
 
 
-spw = 1
-
 name = input.split('/')[-1] + '_fld{field:02d}_spw{spw}'
-obs = rve.ms2observations(input, "DATA", True, spw)
-for ii, o in enumerate(obs):
-    if o is None:
-        continue
-    o.save(join(outdir, name.format(field=ii, spw=spw)), False)
+
+for spw in range(1, 4):
+    obs = rve.ms2observations(input, "DATA", True, spw)
+    for ii, o in enumerate(obs):
+        if o is None:
+            continue
+        o.save(join(outdir, name.format(field=ii, spw=spw)), False)
