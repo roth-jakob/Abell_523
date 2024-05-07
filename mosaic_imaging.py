@@ -16,19 +16,23 @@ from matplotlib.colors import LogNorm
 
 from astropy import units as u
 
+from sys import exit
+
 
 try:
     from mpi4py import MPI
-
     comm = MPI.COMM_WORLD
     master = comm.Get_rank() == 0
 except ImportError:
     comm = None
     master = True
 
-# path = './data'
+cfg = configparser.ConfigParser()
+cfg.read("./abell_523_D.cfg")
 path = '/home/jruestig/pro/python/Abell_523/data/resolve/'
 base = 'A523_CD_06_08_R'
+
+
 data_filenames = [
     join(path, f'{base}.ms_fld{ii:02}.npz') for ii in range(5, 11)]
 # data_filenames = [data_filenames[0]]
@@ -43,24 +47,27 @@ for file in data_filenames:
     all_obs.append(obs)
 
 
-cfg = configparser.ConfigParser()
-cfg.read("./abell_523_D.cfg")
-sky, sky_diffuse_operators = rve.sky_model_diffuse(cfg['sky'])
-sdom = sky.target[3]
-
 center_ra = cfg['sky']['image center ra']
 center_dec = cfg['sky']['image center dec']
 center_frame = cfg['sky']['image center frame']
 npix = int(cfg['sky']['space npix x'])
 fov = float(cfg['sky']['space fov x'].split('d')[0]) * u.deg
+output_directory = f"output/{base}_{npix}_com_wcsT"
+
+sky, sky_diffuse_operators = rve.sky_model_diffuse(cfg['sky'])
+sdom = sky.target[3]
+
+if cfg['sky'].get('point sources mode', False):
+    sky_points, additional_points = rve.sky_model_points(cfg["sky"])
+    sky = sky + sky_points
+    output_directory += '_ps'
+
 
 sky_center = SkyCoord(center_ra, center_dec, unit=(
     u.hourangle, u.deg), frame=center_frame)
 wcs = build_astropy_wcs(sky_center, (npix,)*2, (fov,)*2)
 index = np.meshgrid(np.arange(npix), np.arange(npix))
 sky_coords = wcs.pixel_to_world(*index)
-
-output_directory = f"output/{base}_{npix}_com_wcsT"
 
 
 beam_directions = {}
@@ -84,14 +91,8 @@ for fldid, oo in enumerate(all_obs):
           f'Phase {o_phase_center.ra.hour}, { o_phase_center.dec.deg}',
           dx, dy)
 
-    # x = np.sqrt((sky_coordinates[0] - dx)**2 + (sky_coordinates[1] - dy)**2)
-    # beam0 = rve.vla_beam_func(freq=oo.freq.mean(), x=x)
-    # beam = np.ones_like(x)
+    # beam = rve.vla_beam_func(freq=oo.freq.mean(), x=x).T
     beam = rve.alma_beam_func(D=25.0, d=1.0, freq=oo.freq.mean(), x=x).T
-
-    # plt.imshow(beam, origin='lower')
-    # plt.contour(beam, levels=[0.1], colors='white')
-    # plt.show()
 
     beam = ift.makeField(sdom, beam)
     beam_direction = f'fld{fldid}'
