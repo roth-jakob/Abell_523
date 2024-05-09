@@ -101,8 +101,8 @@ for fldid, oo in enumerate(all_obs):
 
         # beam = rve.vla_beam_func(freq=oo.freq.mean(), x=x).T
         beam = rve.alma_beam_func(D=25.0, d=1.0, freq=ooo.freq.mean(), x=x).T
-        plt.imshow(beam, origin='lower')
-        plt.show()
+        # plt.imshow(beam, origin='lower')
+        # plt.show()
         beam_pointing.append(beam)
 
     beam = np.array(beam_pointing)
@@ -116,41 +116,23 @@ for fldid, oo in enumerate(all_obs):
         beam=beam
     )
 
-
 # Used for the dtypes
 tmp_sky = sky(ift.from_random(sky.domain))
-SKY_BEAMER = SkyBeamer(sky.target[3], beam_directions=beam_directions)
+SKY_BEAMER = SkyBeamer(sky.target, beam_directions=beam_directions)
 
 
-def build_response(field_key, dx, dy, obs, sky_dtype):
-    RADIO_RESPONSE = rve.SingleResponse(
-        SKY_BEAMER.target[field_key],
-        obs.uvw,
-        obs.freq,
-        do_wgridding=False,
-        epsilon=1e-3,
-        # center of the dirty image relative to the phase_center
-        # (in projected radians)
-        center_x=dx,
-        center_y=dy,
-    )
+def build_response(field_key, dx, dy, obs, domain, sky_dtype):
+    R = rve.InterferometryResponse(
+        obs, domain, False, 1e-3, center_x=dx, center_y=dy)
 
     FIELD_EXTRACTOR = ift.JaxLinearOperator(
         SKY_BEAMER.target,
-        RADIO_RESPONSE.domain,
+        R.domain,
         lambda x: x[field_key],
         domain_dtype={k: sky_dtype for k, v in SKY_BEAMER.target.items()}
     )
 
-    # FIXME: This is a hack for making stokes I work, see above
-    UPCAST_TO_STOKES_I = ift.JaxLinearOperator(
-        RADIO_RESPONSE.target,
-        obs.vis.domain,
-        lambda x: x[None],
-        domain_dtype=obs.vis.dtype
-    )
-
-    return UPCAST_TO_STOKES_I @ RADIO_RESPONSE @ FIELD_EXTRACTOR
+    return R @ FIELD_EXTRACTOR
 
 
 def build_energy(response, obs):
@@ -164,7 +146,10 @@ def build_energy(response, obs):
 responses = []
 energies = []
 for kk, vv, obs in zip(beam_directions.keys(), beam_directions.values(), all_obs):
-    R = build_response(kk, vv['dx'], vv['dy'], obs, tmp_sky.dtype)
+    # R = build_response(kk, vv['dx'], vv['dy'], obs, tmp_sky.dtype)
+    R = build_response(
+        field_key=kk, dx=vv['dx'], dy=vv['dy'], obs=obs, domain=sky.target,
+        sky_dtype=tmp_sky.dtype)
     responses.append(R @ SKY_BEAMER)
     energies.append(build_energy(R, obs))
 
@@ -183,7 +168,7 @@ for ii in range(1):
     plt.show()
 
 lh = reduce(lambda x, y: x+y, energies)
-lh = lh @ SKY_BEAMER @ REDUCER @ sky
+lh = lh @ SKY_BEAMER @ sky
 
 
 def callback(samples, i):

@@ -22,10 +22,8 @@ class SkyBeamer(ift.LinearOperator):
 
         t, b = {}, {}
         for kk, vv in self._bd.items():
-            print("\r" + kk, end="")
             t[kk], b[kk] = self._domain, vv['beam']
             assert t[kk] == b[kk].domain
-        print()
 
         self._beams = b
         self._target = ift.makeDomain(t)
