@@ -55,8 +55,8 @@ if psm:
     sky = sky + sky_points
     output_directory += '_ps'
 
-data_filenames = [
-    join(path, f'{base}.ms_fld{ii:02}.npz') for ii in range(5, 11)]
+data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw00.npz')
+                  for ii in range(5, 11)]
 # data_filenames = [data_filenames[0]]
 
 all_obs = []
