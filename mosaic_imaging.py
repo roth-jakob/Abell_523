@@ -29,23 +29,11 @@ except ImportError:
 
 cfg = configparser.ConfigParser()
 cfg.read("./abell_523_D.cfg")
+cfg.read("./abell_523_CD_pol.cfg")
+# cfg.read("./abell_523_CD_muli_frequnency.cfg")
 # cfg.read("abell_523_CD_muli_frequnency.cfg")
 path = '/home/jruestig/pro/python/Abell_523/data/resolve/'
 base = 'A523_CD_06_08_R'
-
-
-data_filenames = [
-    join(path, f'{base}.ms_fld{ii:02}.npz') for ii in range(5, 11)]
-# data_filenames = [data_filenames[0]]
-
-
-all_obs = []
-for file in data_filenames:
-    obs = rve.Observation.load(file)
-    obs = obs.to_double_precision()
-    obs = obs.restrict_to_stokesi()
-    obs = obs.average_stokesi()  # FIXME: Needs to be adjusted for polarization
-    all_obs.append(obs)
 
 
 center_ra = cfg['sky']['image center ra']
@@ -53,15 +41,33 @@ center_dec = cfg['sky']['image center dec']
 center_frame = cfg['sky']['image center frame']
 npix = int(cfg['sky']['space npix x'])
 fov = float(cfg['sky']['space fov x'].split('d')[0]) * u.deg
-output_directory = f"output/{base}_{npix}_com_wcsT"
+output_directory = f"output/{base}_{cfg['Output']['output name']}_{npix}"
 
 sky, sky_diffuse_operators = rve.sky_model_diffuse(cfg['sky'])
 pdom, tdom, fdom, sdom = sky.target
 
-if cfg['sky'].get('point sources mode', False):
+
+psm = cfg['sky'].get('point sources', False)
+psm = eval(psm) if isinstance(psm, str) else psm
+if psm:
+    print("Including: point source model")
     sky_points, additional_points = rve.sky_model_points(cfg["sky"])
     sky = sky + sky_points
     output_directory += '_ps'
+
+data_filenames = [
+    join(path, f'{base}.ms_fld{ii:02}.npz') for ii in range(5, 11)]
+# data_filenames = [data_filenames[0]]
+
+all_obs = []
+for file in data_filenames:
+    obs = rve.Observation.load(file)
+    obs = obs.to_double_precision()
+    if pdom.shape != (4,):
+        print('Restricting to stokes I')
+        obs = obs.restrict_to_stokesi()
+        obs = obs.average_stokesi()  # FIXME: Needs to be adjusted for polarization
+    all_obs.append(obs)
 
 
 sky_center = SkyCoord(center_ra, center_dec, unit=(
@@ -101,8 +107,8 @@ for fldid, oo in enumerate(all_obs):
 
         # beam = rve.vla_beam_func(freq=oo.freq.mean(), x=x).T
         beam = rve.alma_beam_func(D=25.0, d=1.0, freq=ooo.freq.mean(), x=x).T
-        # plt.imshow(beam, origin='lower')
-        # plt.show()
+        plt.imshow(beam, origin='lower')
+        plt.show()
         beam_pointing.append(beam)
 
     beam = np.array(beam_pointing)
@@ -200,6 +206,8 @@ def n_samples(i): return 2 if i < 7 else 4
 
 
 print(output_directory)
+export_operator_outputs = {
+    key: val for key, val in sky_diffuse_operators.items() if 'power' not in key}
 
 samples = ift.optimize_kl(
     lh,
@@ -211,8 +219,7 @@ samples = ift.optimize_kl(
     output_directory=output_directory,
     comm=comm,
     inspect_callback=callback,
-    export_operator_outputs=dict(
-        logdiffuse_stokesI=sky_diffuse_operators['logdiffuse stokesI']),
+    export_operator_outputs=export_operator_outputs,
     resume=True
 )
 
