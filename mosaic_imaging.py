@@ -110,11 +110,7 @@ for fldid, oo in enumerate(all_obs):
 
     beam = ift.makeField(sky.target, beam)
     beam_direction = f'fld{fldid}'
-    beam_directions[beam_direction] = dict(
-        dx=dx,
-        dy=dy,
-        beam=beam
-    )
+    beam_directions[beam_direction] = dict(dx=dx, dy=dy, beam=beam)
 
 # Used for the dtypes
 tmp_sky = sky(ift.from_random(sky.domain))
