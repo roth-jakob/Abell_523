@@ -20,16 +20,17 @@ try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
     master = comm.Get_rank() == 0
+    nthreads = 4
 except ImportError:
     comm = None
     master = True
+    nthreads = 1
 
 cfg = configparser.ConfigParser()
-cfg.read("./abell_523_D.cfg")
+# cfg.read("./abell_523_D.cfg")
 # cfg.read("./abell_523_CD_pol.cfg")
-# cfg.read("./abell_523_CD_muli_frequnency.cfg")
-# cfg.read("abell_523_CD_muli_frequnency.cfg")
-path = '/home/jruestig/pro/python/Abell_523/data/resolve/'
+cfg.read("./abell_523_CD_muli_frequnency.cfg")
+path = './data/resolve/'
 base = 'A523_CD_06_08_R'
 
 
@@ -38,7 +39,7 @@ center_dec = cfg['sky']['image center dec']
 center_frame = cfg['sky']['image center frame']
 npix = int(cfg['sky']['space npix x'])
 fov = float(cfg['sky']['space fov x'].split('d')[0]) * u.deg
-output_directory = f"output/{base}_{cfg['Output']['output name']}_{npix}_test"
+output_directory = f"output/{base}_{cfg['Output']['output name']}_{npix}"
 print('Output:', output_directory)
 
 sky, sky_diffuse_operators = rve.sky_model_diffuse(cfg['sky'])
@@ -57,8 +58,8 @@ if psm:
 data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw00.npz')
                   for ii in range(5, 11)]
 # data_filenames = [data_filenames[0]]
-# data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
-#                   for jj in range(3)]
+data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
+                  for jj in range(3)]
 
 # data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw{jj:02}.npz')
 #                   for ii in range(5, 11) for jj in range(3)]
@@ -75,30 +76,30 @@ for file in data_filenames:
     all_obs.append(obs)
 
 
-def build_filter_pointings(field_pointings):
-    def filter_pointings(obs):
-        if obs.direction in field_pointings:
-            return False
+def filter_pointings_generator(all_obs):
+    field_pointings = list()
 
-        field_pointings.append(obs.direction)
-        return True
-    return filter_pointings
+    for obs in all_obs:
+        if obs.direction not in field_pointings:
+            field_pointings.append(obs.direction)
+            yield obs
 
 
 sky_center = SkyCoord(center_ra, center_dec, unit=(
     u.hourangle, u.deg), frame=center_frame)
 
+
 sky_beamer = rve.build_sky_beamer(
     sky.target,
     sky_center,
-    [obs for obs in filter(build_filter_pointings([]), all_obs)],
+    list(filter_pointings_generator(all_obs)),
     lambda freq, x: rve.alma_beam_func(D=25.0, d=1.0, freq=freq, x=x)
 )
 
 
 def build_response(field_key, dx, dy, obs, domain, sky_dtype):
     R = rve.InterferometryResponse(
-        obs, domain, False, 1e-3, center_x=dx, center_y=dy)
+        obs, domain, False, 1e-3, center_x=dx, center_y=dy, nthreads=nthreads)
 
     FIELD_EXTRACTOR = ift.JaxLinearOperator(
         sky_beamer.target,
@@ -129,8 +130,8 @@ for o in all_obs:
                                obs=o,
                                domain=sky.target,
                                sky_dtype=sky_dtype)
-            responses_plotting.append(R @ sky_beamer)
             energies.append(build_energy(R, o))
+            responses_plotting.append(R @ sky_beamer)
 
 
 rnd = ift.from_random(sky.domain)
@@ -149,13 +150,6 @@ for ii, (rr, oo) in enumerate(zip(responses_plotting, all_obs)):
         fields[fld] = fields[fld] + dirty
     else:
         fields[fld] = dirty
-
-    if False:
-        fig, axes = plt.subplots(1, dirty.shape[2])
-        for ii, ax in enumerate(axes):
-            ax.imshow(dirty[0, 0, ii], origin='lower')
-            ax.set_title(f'{fld}: spb={ii}')
-        plt.show()
 
 for fld, dirty in fields.items():
     fig, axes = plt.subplots(1, dirty.shape[2])
@@ -180,9 +174,11 @@ lh = lh @ sky_beamer @ sky
 
 
 def callback(samples, i):
+    print('Plotting in', output_directory)
+
     sky_mean = samples.average(sky)
     pols, ts, freqs, *_ = sky_mean.shape
-    fig, axes = plt.subplots(pols, freqs, figsize=(freqs, pols))
+    fig, axes = plt.subplots(pols, freqs, figsize=(freqs*4, pols*3))
 
     axes = [axes] if freqs == 1 else axes
     axes = [axes] if pols == 1 else axes
@@ -223,7 +219,8 @@ def n_samples(i): return 2 if i < 7 else 4
 
 print(output_directory)
 export_operator_outputs = {
-    key: val for key, val in sky_diffuse_operators.items() if 'power' not in key}
+    key: val for key, val in sky_diffuse_operators.items() if 'power' not in key
+}
 
 samples = ift.optimize_kl(
     lh,
