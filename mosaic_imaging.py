@@ -76,100 +76,18 @@ for file in data_filenames:
     all_obs.append(obs)
 
 
-def filter_pointings_generator(all_obs):
-    field_pointings = list()
-
-    for obs in all_obs:
-        if obs.direction not in field_pointings:
-            field_pointings.append(obs.direction)
-            yield obs
-
-
 sky_center = SkyCoord(center_ra, center_dec, unit=(
     u.hourangle, u.deg), frame=center_frame)
-
-
 sky_beamer = rve.build_sky_beamer(
     sky.target,
     sky_center,
-    list(filter_pointings_generator(all_obs)),
+    all_obs,
     lambda freq, x: rve.alma_beam_func(D=25.0, d=1.0, freq=freq, x=x)
 )
+likelihoods = rve.build_mosaic_likelihoods(
+    sky.target, sky_dtype, sky_beamer, all_obs, nthreads=nthreads)
 
-
-def build_response(field_key, dx, dy, obs, domain, sky_dtype):
-    R = rve.InterferometryResponse(
-        obs, domain, False, 1e-3, center_x=dx, center_y=dy, nthreads=nthreads)
-
-    FIELD_EXTRACTOR = ift.JaxLinearOperator(
-        sky_beamer.target,
-        R.domain,
-        lambda x: x[field_key],
-        domain_dtype={k: sky_dtype for k, v in sky_beamer.target.items()}
-    )
-
-    return R @ FIELD_EXTRACTOR
-
-
-def build_energy(response, obs):
-    return rve.DiagonalGaussianLikelihood(
-        data=obs.vis,
-        inverse_covariance=obs.weight,
-        mask=obs.mask
-    ) @ response
-
-
-responses_plotting = []
-energies = []
-for o in all_obs:
-    for field_name, bd in sky_beamer._beam_directions.items():
-        if o.direction == bd['direction']:
-            R = build_response(field_name,
-                               dx=bd['dx'],
-                               dy=bd['dy'],
-                               obs=o,
-                               domain=sky.target,
-                               sky_dtype=sky_dtype)
-            energies.append(build_energy(R, o))
-            responses_plotting.append(R @ sky_beamer)
-
-
-rnd = ift.from_random(sky.domain)
-f = sky(rnd)
-tot_response_adjoint = np.zeros_like(f.val)
-fields = {}
-for ii, (rr, oo) in enumerate(zip(responses_plotting, all_obs)):
-    dirty = rr.adjoint(oo.vis).val
-    tot_response_adjoint += dirty
-
-    for fn, bd in sky_beamer._beam_directions.items():
-        if oo.direction == bd['direction']:
-            fld = fn
-
-    if fld in fields:
-        fields[fld] = fields[fld] + dirty
-    else:
-        fields[fld] = dirty
-
-for fld, dirty in fields.items():
-    fig, axes = plt.subplots(1, dirty.shape[2])
-    if dirty.shape[2] == 1:
-        axes = [axes]
-    for ii, ax in enumerate(axes):
-        ax.imshow(dirty[0, 0, ii], origin='lower')
-        ax.set_title(f'{fld}: spb={ii}')
-    plt.show()
-
-fig, axes = plt.subplots(1, dirty.shape[2])
-if dirty.shape[2] == 1:
-    axes = [axes]
-for ii, ax in enumerate(axes):
-    ax.imshow(tot_response_adjoint[0, 0, ii], origin='lower')
-    ax.set_title(f'combined: spb={ii}')
-plt.show()
-
-
-lh = reduce(lambda x, y: x+y, energies)
+lh = reduce(lambda x, y: x+y, likelihoods)
 lh = lh @ sky_beamer @ sky
 
 
