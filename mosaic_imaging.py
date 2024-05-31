@@ -29,9 +29,12 @@ except ImportError:
 cfg = configparser.ConfigParser()
 # cfg.read("./abell_523_D.cfg")
 # cfg.read("./abell_523_CD_pol.cfg")
-cfg.read("./abell_523_CD_muli_frequnency.cfg")
+# cfg.read("./abell_523_CD_muli_frequnency.cfg")
+cfg.read("./abell_523_11_15_mfreq.cfg")
+
 path = './data/resolve/'
-base = 'A523_CD_06_08_R'
+# base = 'A523_CD_06_08_R'
+base = 'A523_CD_11_15_R'
 
 
 center_ra = cfg['sky']['image center ra']
@@ -42,10 +45,10 @@ fov = float(cfg['sky']['space fov x'].split('d')[0]) * u.deg
 output_directory = f"output/{base}_{cfg['Output']['output name']}_{npix}"
 print('Output:', output_directory)
 
+
 sky, sky_diffuse_operators = rve.sky_model_diffuse(cfg['sky'])
 pdom, tdom, fdom, sdom = sky.target
 sky_dtype = sky(ift.from_random(sky.domain)).dtype
-
 
 psm = cfg['sky'].get('point sources', False)
 psm = eval(psm) if isinstance(psm, str) else psm
@@ -55,14 +58,18 @@ if psm:
     sky = sky + sky_points
     output_directory += '_ps'
 
-data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw00.npz')
-                  for ii in range(5, 11)]
+# data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw00.npz')
+#                   for ii in range(5, 11)]
 # data_filenames = [data_filenames[0]]
-data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
-                  for jj in range(3)]
+# data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
+#                   for jj in range(3)]
 
 # data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw{jj:02}.npz')
 #                   for ii in range(5, 11) for jj in range(3)]
+
+data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
+                  for jj in range(0, 5)]
+
 
 all_obs = []
 for file in data_filenames:

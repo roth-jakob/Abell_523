@@ -1,0 +1,14 @@
+CTYPE1 = 'RA---SIN' /Type of coordinate axis
+CRVAL1 = 7.4918237501940E+01 /Reference value along axis
+CDELT1 = -1.9444444444440E-03 /Pixel spacing along axis
+CRPIX1 = 5.0100000000000E+02 /Reference pixel along axis
+CUNIT1 = 'deg' /units of coord. values
+CTYPE2 = 'DEC--SIN' /Type of coordinate axis
+CRVAL2 = 9.0331527773250E+00 /Reference value along axis
+CDELT2 = 1.9444444444440E-03 /Pixel spacing along axis
+CRPIX2 = 5.0100000000000E+02 /Reference pixel along axis
+CUNIT2 = 'deg' /units of coord. values
+CTYPE3 = 'FREQ' /Type of coordinate axis
+CRVAL3 = 1.3615000000000E+09 /Reference value along axis
+CDELT3 = 9.6000000000000E+07 /Pixel spacing along axis
+CRPIX3 = 1.0000000000000E+00 /Reference pixel along axis
