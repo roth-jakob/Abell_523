@@ -92,7 +92,7 @@ lh = lh @ sky_beamer @ sky
 
 
 def callback(samples, i):
-    print('Plotting in', output_directory)
+    print('Plotting iteration', i, 'in: ', output_directory)
 
     sky_mean = samples.average(sky)
     pols, ts, freqs, *_ = sky_mean.shape
@@ -129,10 +129,10 @@ minimizer_early = ift.NewtonCG(ic_newton_early)
 minimizer_late = ift.NewtonCG(ic_newton_late)
 
 
-n_iterations = 7
+n_iterations = 10
 def ic_sampling(i): return ic_sampling_early if i < 15 else ic_sampling_late
 def minimizer(i): return minimizer_early if i < 15 else minimizer_late
-def n_samples(i): return 2 if i < 7 else 4
+def n_samples(i): return 2 if i < 10 else 4
 
 
 print(output_directory)
