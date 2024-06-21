@@ -22,7 +22,7 @@ outdir = args.output_dir
 makedirs(outdir, exist_ok=True)
 
 
-spw_length = 5  # FIXME: SHOULD be set dynamically
+spw_length = 3  # FIXME: SHOULD be set dynamically
 fields = [
     'A523_TL', 'A523_TR', 'A523_ML', 'A523_MC', 'A523_MR', 'A523_BL']  # FIXME: SHOULD be set dynamically
 field_ids = [ii for ii in range(5, 11)]

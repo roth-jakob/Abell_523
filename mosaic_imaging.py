@@ -28,13 +28,14 @@ except ImportError:
 
 cfg = configparser.ConfigParser()
 # cfg.read("./abell_523_D.cfg")
-# cfg.read("./abell_523_CD_pol.cfg")
+cfg.read("./abell_523_CD_pol.cfg")
 # cfg.read("./abell_523_CD_muli_frequnency.cfg")
-cfg.read("./abell_523_11_15_mfreq.cfg")
+# cfg.read("./abell_523_11_15_mfreq.cfg")
+# cfg.read("./abell_523_CD_pol_multifreq.cfg")
 
 path = './data/resolve/'
-# base = 'A523_CD_06_08_R'
-base = 'A523_CD_11_15_R'
+base = 'A523_CD_06_08_R'
+# base = 'A523_CD_11_15_R'
 
 
 center_ra = cfg['sky']['image center ra']
@@ -64,11 +65,11 @@ if psm:
 # data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
 #                   for jj in range(3)]
 
-# data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw{jj:02}.npz')
-#                   for ii in range(5, 11) for jj in range(3)]
+data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw{jj:02}.npz')
+                   for ii in range(5, 11) for jj in range(3)]
 
-data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
-                  for jj in range(0, 5)]
+# data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
+#                   for jj in range(0, 5)]
 
 
 all_obs = []
@@ -156,7 +157,8 @@ samples = ift.optimize_kl(
     None,
     output_directory=output_directory,
     comm=comm,
-    inspect_callback=callback,
+    #inspect_callback=callback,
+    inspect_callback=None,
     export_operator_outputs=export_operator_outputs,
     resume=True
 )
