@@ -66,7 +66,7 @@ if psm:
 #                   for jj in range(3)]
 
 data_filenames = [join(path, f'{base}.ms_fld{ii:02}_spw{jj:02}.npz')
-                   for ii in range(5, 11) for jj in range(3)]
+                  for ii in range(5, 11) for jj in range(3)]
 
 # data_filenames = [join(path, f'{base}.ms_fld08_spw{jj:02}.npz')
 #                   for jj in range(0, 5)]
@@ -106,14 +106,32 @@ def callback(samples, i):
     pols, ts, freqs, *_ = sky_mean.shape
     fig, axes = plt.subplots(pols, freqs, figsize=(freqs*4, pols*3))
 
-    axes = [axes] if freqs == 1 else axes
-    axes = [axes] if pols == 1 else axes
+    rve.ubik_tools.field2fits(sky_mean, join(
+        output_directory, f'sky_reso_iter{i}.fits'))
 
-    for pol, pol_axes in enumerate(axes):
-        for freq, ax in enumerate(pol_axes):
-            im = ax.imshow(
-                sky_mean.val[pol, 0, freq].T, origin="lower", norm=LogNorm())
+    if freqs == 1:
+        for poli, ax in enumerate(axes):
+            f = sky_mean.val[poli, 0, 0].T
+            if poli > 0:
+                f = np.abs(f)
+
+            im = ax.imshow(f, origin="lower", norm=LogNorm())
             plt.colorbar(im, ax=ax)
+
+    elif pols == 1:
+        for freqi, ax in enumerate(axes):
+            im = ax.imshow(
+                sky_mean.val[0, 0, freqi].T, origin="lower", norm=LogNorm())
+            plt.colorbar(im, ax=ax)
+
+    else:
+        for poli, pol_axes in enumerate(axes):
+            for freqi, ax in enumerate(pol_axes):
+                if poli > 0:
+                    f = np.abs(f)
+                f = sky_mean.val[poli, 0, freqi].T
+                im = ax.imshow(f, origin="lower", norm=LogNorm())
+                plt.colorbar(im, ax=ax)
 
     plt.tight_layout()
     if master:
@@ -137,7 +155,7 @@ minimizer_early = ift.NewtonCG(ic_newton_early)
 minimizer_late = ift.NewtonCG(ic_newton_late)
 
 
-n_iterations = 10
+n_iterations = 20
 def ic_sampling(i): return ic_sampling_early if i < 15 else ic_sampling_late
 def minimizer(i): return minimizer_early if i < 15 else minimizer_late
 def n_samples(i): return 2 if i < 10 else 4
@@ -157,7 +175,7 @@ samples = ift.optimize_kl(
     None,
     output_directory=output_directory,
     comm=comm,
-    #inspect_callback=callback,
+    inspect_callback=callback,
     inspect_callback=None,
     export_operator_outputs=export_operator_outputs,
     resume=True
