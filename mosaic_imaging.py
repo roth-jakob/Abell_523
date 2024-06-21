@@ -176,7 +176,6 @@ samples = ift.optimize_kl(
     output_directory=output_directory,
     comm=comm,
     inspect_callback=callback,
-    inspect_callback=None,
     export_operator_outputs=export_operator_outputs,
     resume=True
 )
