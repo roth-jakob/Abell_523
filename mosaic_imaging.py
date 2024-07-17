@@ -27,8 +27,8 @@ except ImportError:
     nthreads = 1
 
 cfg = configparser.ConfigParser()
-# cfg.read("./abell_523_D.cfg")
-cfg.read("./abell_523_CD_pol.cfg")
+cfg.read("./abell_523_D.cfg")
+# cfg.read("./abell_523_CD_pol.cfg")
 # cfg.read("./abell_523_CD_muli_frequnency.cfg")
 # cfg.read("./abell_523_11_15_mfreq.cfg")
 # cfg.read("./abell_523_CD_pol_multifreq.cfg")
@@ -158,8 +158,8 @@ minimizer_late = ift.NewtonCG(ic_newton_late)
 n_iterations = 20
 def ic_sampling(i): return ic_sampling_early if i < 15 else ic_sampling_late
 def minimizer(i): return minimizer_early if i < 15 else minimizer_late
-def n_samples(i): return 2 if i < 10 else 4
-
+#def n_samples(i): return 2 if i < 10 else 4
+n_samples = 0 
 
 print(output_directory)
 export_operator_outputs = {
