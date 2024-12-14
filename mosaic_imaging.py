@@ -29,7 +29,7 @@ except ImportError:
 cfg = configparser.ConfigParser()
 cfg.read("./abell_523_D.cfg")
 # cfg.read("./abell_523_CD_pol.cfg")
-# cfg.read("./abell_523_CD_muli_frequnency.cfg")
+cfg.read("./abell_523_CD_muli_frequnency.cfg")
 # cfg.read("./abell_523_11_15_mfreq.cfg")
 # cfg.read("./abell_523_CD_pol_multifreq.cfg")
 
@@ -84,16 +84,19 @@ for file in data_filenames:
     all_obs.append(obs)
 
 
-sky_center = SkyCoord(center_ra, center_dec, unit=(
-    u.hourangle, u.deg), frame=center_frame)
+sky_center = SkyCoord(
+    center_ra, center_dec, unit=(u.hourangle, u.deg), frame=center_frame)
 sky_beamer = rve.build_sky_beamer(
-    sky.target,
-    sky_center,
-    all_obs,
+    sky.target, sky_center, all_obs,
     lambda freq, x: rve.alma_beam_func(D=25.0, d=1.0, freq=freq, x=x)
 )
 likelihoods = rve.build_mosaic_likelihoods(
-    sky.target, sky_dtype, sky_beamer, all_obs, nthreads=nthreads)
+    sky_beamer=sky_beamer,
+    observations=all_obs,
+    plot_dirty=False,
+    sky_dtype=sky_dtype,
+    nthreads=nthreads,
+)
 
 lh = reduce(lambda x, y: x+y, likelihoods)
 lh = lh @ sky_beamer @ sky
@@ -158,8 +161,10 @@ minimizer_late = ift.NewtonCG(ic_newton_late)
 n_iterations = 20
 def ic_sampling(i): return ic_sampling_early if i < 15 else ic_sampling_late
 def minimizer(i): return minimizer_early if i < 15 else minimizer_late
+
+
 #def n_samples(i): return 2 if i < 10 else 4
-n_samples = 0 
+n_samples = 0
 
 print(output_directory)
 export_operator_outputs = {
